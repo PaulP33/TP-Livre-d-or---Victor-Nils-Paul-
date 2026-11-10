@@ -72,6 +72,22 @@ Et une écriture sur la réplica doit être refusée car elle est en lecture seu
 docker compose exec db-replica psql -U livredor -d livredor -c "INSERT INTO messages (author, content) VALUES ('test', 'test');"
 ```
 
+## Healthcheck
+
+L'app expose `/health` qui vérifie la connexion à la base principale et à Redis. Docker s'en sert pour savoir quand l'app est prête, et nginx ne démarre qu'une fois l'app en bonne santé.
+
+```bash
+docker compose ps
+```
+
+Si Redis tombe, le site continue de marcher : les messages sont lus directement sur la réplica.
+
+```bash
+docker compose stop redis
+# le bas de la page doit afficher "replica PostgreSQL"
+docker compose start redis
+```
+
 ## Arborescence
 
 ```

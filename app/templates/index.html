@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Livre d'or</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main>
+        <h1>Livre d'or</h1>
+
+        <form method="post">
+            <input type="text" name="author" placeholder="Votre nom" maxlength="50" required>
+            <textarea name="content" placeholder="Votre message" maxlength="500" rows="4" required></textarea>
+            <button type="submit">Envoyer</button>
+        </form>
+
+        <section>
+            {% for m in messages %}
+            <article>
+                <p class="meta"><strong>{{ m.author }}</strong> le {{ m.date }}</p>
+                <p>{{ m.content }}</p>
+            </article>
+            {% else %}
+            <p class="empty">Aucun message pour le moment, soyez le premier !</p>
+            {% endfor %}
+        </section>
+
+        <footer>Messages lus depuis : {{ source }}</footer>
+    </main>
+</body>
+</html>

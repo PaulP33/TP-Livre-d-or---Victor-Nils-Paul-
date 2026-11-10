@@ -1,0 +1,150 @@
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+      - grafana
+      - mailpit
+      - prometheus
+    restart: unless-stopped
+
+  app:
+    build: ./app
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      DB_PRIMARY_HOST: db-primary
+      DB_REPLICA_HOST: db-replica
+      REDIS_HOST: redis
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      PGTZ: Europe/Paris
+    depends_on:
+      db-primary:
+        condition: service_healthy
+      db-replica:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  db-primary:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      REPLICATION_USER: ${REPLICATION_USER}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+    volumes:
+      - db-primary:/var/lib/postgresql/data
+      - ./db/primary/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  db-replica:
+    image: postgres:17-alpine
+    user: postgres
+    entrypoint: ["sh", "/replica.sh"]
+    environment:
+      REPLICATION_USER: ${REPLICATION_USER}
+      REPLICATION_PASSWORD: ${REPLICATION_PASSWORD}
+    volumes:
+      - db-replica:/var/lib/postgresql/data
+      - ./db/replica/replica.sh:/replica.sh:ro
+    depends_on:
+      db-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    environment:
+      MP_WEBROOT: /mail/
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.external-url=http://localhost/prometheus/
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/livre-dor.json
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.62.0
+    environment:
+      REDIS_ADDR: redis://redis:6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  pg-exporter-primary:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-primary:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      db-primary:
+        condition: service_healthy
+    restart: unless-stopped
+
+  pg-exporter-replica:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.15.0
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db-replica:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      db-replica:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db-primary:
+  db-replica:
+  prometheus-data:
+  grafana-data:

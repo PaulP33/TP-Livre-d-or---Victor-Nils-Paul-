@@ -1,15 +1,23 @@
 import json
 import os
 import smtplib
+import uuid
 from email.message import EmailMessage
 
 import psycopg
 import redis
-from flask import Flask, Response, flash, redirect, render_template, request, url_for
+from flask import (
+    Flask, Response, flash, redirect, render_template, request, send_from_directory, url_for,
+)
+from PIL import Image, ImageOps, UnidentifiedImageError
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, generate_latest
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev")
+app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
+
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/app/uploads")
+PHOTO_MAX_SIZE = (1600, 1600)
 
 DB_USER = os.environ["POSTGRES_USER"]
 DB_PASSWORD = os.environ["POSTGRES_PASSWORD"]
@@ -32,6 +40,7 @@ requests_count = Counter("livredor_requests", "Requetes HTTP", ["page"])
 messages_count = Counter("livredor_messages", "Messages postes")
 cache_count = Counter("livredor_cache", "Acces au cache Redis", ["result"])
 likes_count = Counter("livredor_likes", "Likes")
+photos_count = Counter("livredor_photos", "Photos envoyees")
 blocked_count = Counter("livredor_blocked", "Messages refuses", ["reason"])
 
 
@@ -39,9 +48,12 @@ def connect(host):
     return psycopg.connect(host=host, user=DB_USER, password=DB_PASSWORD, dbname=DB_NAME)
 
 
-# pour les bases creees avant l'ajout des likes
+# pour les bases creees avant l'ajout des likes et des photos
 with connect(PRIMARY_HOST) as conn:
     conn.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS likes INTEGER NOT NULL DEFAULT 0")
+    conn.execute("ALTER TABLE messages ADD COLUMN IF NOT EXISTS photo VARCHAR(64)")
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 @app.template_filter("hue")
@@ -81,7 +93,8 @@ def get_messages(page, search):
     pattern = f"%{search}%"
     with connect(REPLICA_HOST) as conn:
         rows = conn.execute(
-            "SELECT id, author, content, likes, to_char(created_at, 'DD/MM/YYYY HH24:MI') "
+            "SELECT id, author, content, likes, photo, "
+            "to_char(created_at, 'DD/MM/YYYY HH24:MI') "
             "FROM messages WHERE author ILIKE %s OR content ILIKE %s "
             "ORDER BY created_at DESC LIMIT %s OFFSET %s",
             (pattern, pattern, PER_PAGE, (page - 1) * PER_PAGE),
@@ -92,15 +105,22 @@ def get_messages(page, search):
             "FROM messages WHERE author ILIKE %s OR content ILIKE %s",
             (pattern, pattern),
         ).fetchone()
+        gallery = conn.execute(
+            "SELECT photo, author FROM messages WHERE photo IS NOT NULL "
+            "ORDER BY created_at DESC LIMIT 12"
+        ).fetchall()
+        photos = conn.execute("SELECT count(photo) FROM messages").fetchone()[0]
 
     data = {
         "messages": [
-            {"id": i, "author": a, "content": c, "likes": l, "date": d}
-            for i, a, c, l, d in rows
+            {"id": i, "author": a, "content": c, "likes": l, "photo": p, "date": d}
+            for i, a, c, l, p, d in rows
         ],
+        "gallery": [{"photo": p, "author": a} for p, a in gallery],
         "total": total,
         "authors": authors,
         "today": today,
+        "photos": photos,
     }
     try:
         cache.set(key, json.dumps(data), ex=CACHE_TTL)
@@ -115,6 +135,21 @@ def can_post(ip):
         return cache.set(f"ratelimit:{ip}", 1, nx=True, ex=POST_DELAY)
     except redis.RedisError:
         return True
+
+
+def save_photo(file):
+    # on reouvre l'image avec Pillow : ca verifie que c'est bien une image
+    # et ca enleve les donnees EXIF (position GPS etc.)
+    try:
+        img = Image.open(file.stream)
+        img = ImageOps.exif_transpose(img).convert("RGB")
+    except (UnidentifiedImageError, OSError):
+        return None
+
+    img.thumbnail(PHOTO_MAX_SIZE)
+    name = f"{uuid.uuid4().hex}.jpg"
+    img.save(os.path.join(UPLOAD_DIR, name), "JPEG", quality=85, optimize=True)
+    return name
 
 
 def send_notification(author, content):
@@ -176,10 +211,24 @@ def new_message():
         flash(f"Doucement ! Attends {POST_DELAY} secondes entre deux messages.", "error")
         return redirect(url_for("index"))
 
+    photo = None
+    file = request.files.get("photo")
+    if file and file.filename:
+        photo = save_photo(file)
+        if photo is None:
+            # on libere l'anti-spam pour qu'il puisse renvoyer tout de suite
+            try:
+                cache.delete(f"ratelimit:{client_ip()}")
+            except redis.RedisError:
+                pass
+            flash("Ce fichier n'est pas une image valide (JPG, PNG, WEBP...).", "error")
+            return redirect(url_for("index"))
+        photos_count.inc()
+
     with connect(PRIMARY_HOST) as conn:
         conn.execute(
-            "INSERT INTO messages (author, content) VALUES (%s, %s)",
-            (author, content),
+            "INSERT INTO messages (author, content, photo) VALUES (%s, %s, %s)",
+            (author, content, photo),
         )
     clear_cache()
     messages_count.inc()
@@ -206,6 +255,17 @@ def like(message_id):
     likes_count.inc()
 
     return redirect(request.referrer or url_for("index"))
+
+
+@app.get("/uploads/<name>")
+def uploads(name):
+    return send_from_directory(UPLOAD_DIR, name, max_age=86400)
+
+
+@app.errorhandler(413)
+def too_large(e):
+    flash("La photo est trop lourde (8 Mo maximum).", "error")
+    return redirect(url_for("index"))
 
 
 @app.get("/health")

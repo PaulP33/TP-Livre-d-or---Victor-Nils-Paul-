@@ -9,6 +9,7 @@ CREATE TABLE messages (
     author VARCHAR(50) NOT NULL,
     content TEXT NOT NULL,
     likes INTEGER NOT NULL DEFAULT 0,
+    photo VARCHAR(64),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 EOSQL

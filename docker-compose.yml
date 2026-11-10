@@ -18,6 +18,8 @@ services:
 
   app:
     build: ./app
+    volumes:
+      - uploads:/app/uploads
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -159,3 +161,4 @@ volumes:
   db-replica:
   prometheus-data:
   grafana-data:
+  uploads:

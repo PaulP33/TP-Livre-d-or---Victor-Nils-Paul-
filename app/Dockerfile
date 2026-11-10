@@ -8,7 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # pas besoin de tourner en root
-RUN useradd --no-create-home appuser
+RUN useradd --no-create-home appuser && mkdir -p /app/uploads && chown appuser /app/uploads
 USER appuser
 
 EXPOSE 5000

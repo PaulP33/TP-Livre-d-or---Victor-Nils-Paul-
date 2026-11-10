@@ -4,96 +4,157 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Livre d'or</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Great+Vibes&family=Playfair+Display:ital,wght@0,600;1,500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <main class="guestbook-container">
-        <header class="page-header">
+    <!-- Bandeau -->
+    <header class="hero">
+        <div class="sparkles" aria-hidden="true">
+            {% for i in range(18) %}<span style="--i: {{ i }}"></span>{% endfor %}
+        </div>
+        <div class="hero-content">
+            <p class="hero-overline">Bienvenue</p>
             <h1>Livre d'or</h1>
-            <p class="subtitle">Laissez une trace de votre passage</p>
-        </header>
+            <div class="ornament" aria-hidden="true"><span></span>&#10086;<span></span></div>
+            <p class="hero-subtitle">Un mot, un souvenir, une photo&nbsp;: laissez une trace de ce moment.</p>
+            <a href="#ecrire" class="btn-hero">Signer le livre</a>
 
-        <!-- Stats -->
-        <section class="stats">
-            <div class="stat"><span class="stat-value">{{ total }}</span><span class="stat-label">message{{ 's' if total > 1 }}</span></div>
-            <div class="stat"><span class="stat-value">{{ authors }}</span><span class="stat-label">auteur{{ 's' if authors > 1 }}</span></div>
-            <div class="stat"><span class="stat-value">{{ today }}</span><span class="stat-label">aujourd'hui</span></div>
-        </section>
+            <div class="stats">
+                <div class="stat"><span class="stat-value" data-count="{{ total }}">{{ total }}</span><span class="stat-label">message{{ 's' if total > 1 }}</span></div>
+                <div class="stat"><span class="stat-value" data-count="{{ authors }}">{{ authors }}</span><span class="stat-label">invité{{ 's' if authors > 1 }}</span></div>
+                <div class="stat"><span class="stat-value" data-count="{{ photos }}">{{ photos }}</span><span class="stat-label">photo{{ 's' if photos > 1 }}</span></div>
+                <div class="stat"><span class="stat-value" data-count="{{ today }}">{{ today }}</span><span class="stat-label">aujourd'hui</span></div>
+            </div>
+        </div>
+        <svg class="hero-wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0,40 C360,90 1080,-10 1440,40 L1440,80 L0,80 Z"></path>
+        </svg>
+    </header>
 
+    <main class="guestbook-container">
         {% with flashes = get_flashed_messages(with_categories=true) %}
         {% for category, text in flashes %}
         <div class="flash flash-{{ category }}">{{ text }}</div>
         {% endfor %}
         {% endwith %}
 
-        <!-- Formulaire d'ajout de message -->
-        <form method="post" class="guestbook-form">
-            <div class="form-group">
-                <label for="author">Votre nom</label>
-                <input type="text" id="author" name="author" placeholder="Ex: Jean Dupont" maxlength="50" required>
+        <!-- Galerie -->
+        {% if gallery %}
+        <section class="gallery-section reveal">
+            <h2 class="section-title">La galerie</h2>
+            <p class="section-subtitle">Les plus beaux moments partagés par les invités</p>
+            <div class="gallery">
+                {% for g in gallery %}
+                <button type="button" class="gallery-item" data-src="{{ url_for('uploads', name=g.photo) }}" data-caption="Photo de {{ g.author }}">
+                    <img src="{{ url_for('uploads', name=g.photo) }}" alt="Photo de {{ g.author }}" loading="lazy">
+                    <span class="gallery-caption">{{ g.author }}</span>
+                </button>
+                {% endfor %}
             </div>
-            <div class="form-group">
-                <label for="content">Votre message</label>
-                <textarea id="content" name="content" placeholder="Laissez un petit mot ici..." maxlength="500" rows="4" required></textarea>
-                <span class="counter"><span id="count">0</span>/500</span>
-            </div>
-            <!-- anti-spam : invisible pour les humains -->
-            <input type="text" name="website" class="honeypot" tabindex="-1" autocomplete="off">
-            <button type="submit" class="btn-submit">Envoyer le message</button>
-        </form>
-
-        <!-- Recherche -->
-        <form method="get" class="search-form">
-            <input type="search" name="q" value="{{ search }}" placeholder="Rechercher un nom ou un message...">
-            {% if search %}<a href="{{ url_for('index') }}" class="search-reset">Effacer</a>{% endif %}
-        </form>
-
-        <!-- Liste des messages -->
-        <section class="messages-section" aria-labelledby="messages-title">
-            <h2 id="messages-title" class="sr-only">Messages précédents</h2>
-            {% for m in messages %}
-            <article class="message-card">
-                <div class="avatar" style="--hue: {{ m.author|hue }}">{{ m.author[0]|upper }}</div>
-                <div class="message-body">
-                    <header class="message-header">
-                        <strong class="message-author">{{ m.author }}</strong>
-                        <time class="message-date">{{ m.date }}</time>
-                    </header>
-                    <p class="message-content">{{ m.content }}</p>
-                    <form method="post" action="{{ url_for('like', message_id=m.id) }}" class="like-form">
-                        <button type="submit" class="btn-like {{ 'liked' if m.id in liked }}" {{ 'disabled' if m.id in liked }}>
-                            ♥ {{ m.likes }}
-                        </button>
-                    </form>
-                </div>
-            </article>
-            {% else %}
-            <p class="empty-message">
-                {% if search %}Aucun message ne correspond à « {{ search }} ».{% else %}Aucun message pour le moment, soyez le premier !{% endif %}
-            </p>
-            {% endfor %}
         </section>
-
-        {% if pages > 1 %}
-        <nav class="pagination">
-            {% if page > 1 %}<a href="{{ url_for('index', page=page - 1, q=search or None) }}">&larr; Précédent</a>{% endif %}
-            <span>Page {{ page }} / {{ pages }}</span>
-            {% if page < pages %}<a href="{{ url_for('index', page=page + 1, q=search or None) }}">Suivant &rarr;</a>{% endif %}
-        </nav>
         {% endif %}
 
-        <!-- Information technique (Docker / Source) -->
-        <footer class="guestbook-footer">
-            <p>Messages lus depuis : <span class="badge-source">{{ source }}</span></p>
-        </footer>
+        <!-- Formulaire d'ajout de message -->
+        <section id="ecrire" class="book-page reveal">
+            <h2 class="section-title">Signer le livre</h2>
+            <div class="ornament ornament-small" aria-hidden="true"><span></span>&#10086;<span></span></div>
+
+            <form method="post" enctype="multipart/form-data" class="guestbook-form">
+                <div class="form-group">
+                    <label for="author">Votre nom</label>
+                    <input type="text" id="author" name="author" placeholder="Ex : Jean Dupont" maxlength="50" required>
+                </div>
+                <div class="form-group">
+                    <label for="content">Votre message</label>
+                    <textarea id="content" name="content" placeholder="Laissez un petit mot ici..." maxlength="500" rows="5" required></textarea>
+                    <span class="counter"><span id="count">0</span>/500</span>
+                </div>
+
+                <div class="form-group">
+                    <span class="label">Une photo de l'événement <em>(facultatif)</em></span>
+                    <label class="dropzone" id="dropzone">
+                        <input type="file" name="photo" id="photo" accept="image/*">
+                        <span class="dropzone-text" id="dropzone-text">
+                            <strong>Cliquez</strong> ou glissez une photo ici<br>
+                            <small>JPG, PNG ou WEBP, 8 Mo maximum</small>
+                        </span>
+                        <img id="preview" class="preview" alt="">
+                    </label>
+                    <button type="button" class="btn-remove" id="remove-photo" hidden>Retirer la photo</button>
+                </div>
+
+                <!-- anti-spam : invisible pour les humains -->
+                <input type="text" name="website" class="honeypot" tabindex="-1" autocomplete="off">
+                <button type="submit" class="btn-submit">Signer le livre d'or</button>
+            </form>
+        </section>
+
+        <!-- Messages -->
+        <section class="messages-section" aria-labelledby="messages-title">
+            <h2 id="messages-title" class="section-title reveal">Les mots des invités</h2>
+
+            <form method="get" action="#messages-title" class="search-form reveal">
+                <input type="search" name="q" value="{{ search }}" placeholder="Rechercher un nom ou un message...">
+                {% if search %}<a href="{{ url_for('index') }}#messages-title" class="search-reset">Effacer</a>{% endif %}
+            </form>
+
+            <div class="messages-grid">
+                {% for m in messages %}
+                <article class="message-card reveal">
+                    {% if m.photo %}
+                    <button type="button" class="message-photo" data-src="{{ url_for('uploads', name=m.photo) }}" data-caption="Photo de {{ m.author }}">
+                        <img src="{{ url_for('uploads', name=m.photo) }}" alt="Photo de {{ m.author }}" loading="lazy">
+                    </button>
+                    {% endif %}
+                    <div class="message-body">
+                        <p class="message-content">{{ m.content }}</p>
+                        <footer class="message-footer">
+                            <div class="avatar" style="--hue: {{ m.author|hue }}">{{ m.author[0]|upper }}</div>
+                            <div class="message-meta">
+                                <strong class="message-author">{{ m.author }}</strong>
+                                <time class="message-date">{{ m.date }}</time>
+                            </div>
+                            <form method="post" action="{{ url_for('like', message_id=m.id) }}" class="like-form">
+                                <button type="submit" class="btn-like {{ 'liked' if m.id in liked }}" {{ 'disabled' if m.id in liked }} aria-label="J'aime">
+                                    <span class="heart">&#9829;</span> {{ m.likes }}
+                                </button>
+                            </form>
+                        </footer>
+                    </div>
+                </article>
+                {% else %}
+                <p class="empty-message">
+                    {% if search %}Aucun message ne correspond à « {{ search }} ».{% else %}Aucun message pour le moment, soyez le premier à signer !{% endif %}
+                </p>
+                {% endfor %}
+            </div>
+
+            {% if pages > 1 %}
+            <nav class="pagination">
+                {% if page > 1 %}<a href="{{ url_for('index', page=page - 1, q=search or None) }}#messages-title">&larr; Précédent</a>{% endif %}
+                <span>Page {{ page }} / {{ pages }}</span>
+                {% if page < pages %}<a href="{{ url_for('index', page=page + 1, q=search or None) }}#messages-title">Suivant &rarr;</a>{% endif %}
+            </nav>
+            {% endif %}
+        </section>
     </main>
 
-    <script>
-        const content = document.getElementById("content");
-        const count = document.getElementById("count");
-        content.addEventListener("input", () => {
-            count.textContent = content.value.length;
-        });
-    </script>
+    <!-- Information technique (Docker / Source) -->
+    <footer class="guestbook-footer">
+        <div class="ornament ornament-small" aria-hidden="true"><span></span>&#10086;<span></span></div>
+        <p>Messages lus depuis : <span class="badge-source">{{ source }}</span></p>
+    </footer>
+
+    <!-- Visionneuse photo -->
+    <div class="lightbox" id="lightbox" hidden>
+        <button type="button" class="lightbox-close" aria-label="Fermer">&times;</button>
+        <img id="lightbox-img" alt="">
+        <p id="lightbox-caption"></p>
+    </div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

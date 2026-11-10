@@ -7,27 +7,42 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <main>
+    <main class="guestbook-container">
         <h1>Livre d'or</h1>
 
-        <form method="post">
-            <input type="text" name="author" placeholder="Votre nom" maxlength="50" required>
-            <textarea name="content" placeholder="Votre message" maxlength="500" rows="4" required></textarea>
-            <button type="submit">Envoyer</button>
+        <!-- Formulaire d'ajout de message -->
+        <form method="post" class="guestbook-form">
+            <div class="form-group">
+                <label for="author">Votre nom</label>
+                <input type="text" id="author" name="author" placeholder="Ex: Jean Dupont" maxlength="50" required>
+            </div>
+            <div class="form-group">
+                <label for="content">Votre message</label>
+                <textarea id="content" name="content" placeholder="Laissez un petit mot ici..." maxlength="500" rows="4" required></textarea>
+            </div>
+            <button type="submit" class="btn-submit">Envoyer le message</button>
         </form>
 
-        <section>
+        <!-- Liste des messages -->
+        <section class="messages-section" aria-labelledby="messages-title">
+            <h2 id="messages-title" class="sr-only">Messages précédents</h2>
             {% for m in messages %}
-            <article>
-                <p class="meta"><strong>{{ m.author }}</strong> le {{ m.date }}</p>
-                <p>{{ m.content }}</p>
+            <article class="message-card">
+                <header class="message-header">
+                    <strong class="message-author">{{ m.author }}</strong>
+                    <time class="message-date" datetime="{{ m.date }}">{{ m.date }}</time>
+                </header>
+                <p class="message-content">{{ m.content }}</p>
             </article>
             {% else %}
-            <p class="empty">Aucun message pour le moment, soyez le premier !</p>
+            <p class="empty-message">Aucun message pour le moment, soyez le premier !</p>
             {% endfor %}
         </section>
 
-        <footer>Messages lus depuis : {{ source }}</footer>
+        <!-- Information technique (Docker / Source) -->
+        <footer class="guestbook-footer">
+            <p>Messages lus depuis : <span class="badge-source">{{ source }}</span></p>
+        </footer>
     </main>
 </body>
 </html>

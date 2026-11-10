@@ -41,6 +41,7 @@
 
         <!-- Information technique (Docker / Source) -->
         <footer class="guestbook-footer">
+            <p>{{ messages|length }} message{{ 's' if messages|length > 1 }} affiché{{ 's' if messages|length > 1 }}</p>
             <p>Messages lus depuis : <span class="badge-source">{{ source }}</span></p>
         </footer>
     </main>

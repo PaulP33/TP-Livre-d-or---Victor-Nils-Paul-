@@ -22,6 +22,16 @@ Projet Docker ESGI. Un livre d'or tout simple : on laisse un message, il est enr
 2. L'app l'écrit dans `db-primary`, vide le cache Redis et envoie un mail via Mailpit.
 3. Pour afficher les messages, l'app regarde d'abord dans Redis. Si le cache est vide, elle lit dans `db-replica` puis remet le résultat en cache.
 
+### Fonctionnalités du site
+
+- Pagination (10 messages par page) et recherche par nom ou contenu
+- Likes sur les messages, un seul par personne (les IPs qui ont liké sont stockées dans Redis)
+- Anti-spam : un message toutes les 30 s par IP (clé Redis avec expiration) et un champ caché pour piéger les bots
+- Statistiques en haut de page (messages, auteurs, messages du jour)
+- Mode sombre automatique selon le système, avatars de couleur, compteur de caractères
+
+Les likes et les messages refusés sont aussi comptés dans les métriques Prometheus (`livredor_likes`, `livredor_blocked`).
+
 En bas de la page on voit d'où viennent les messages (cache Redis ou réplica), pratique pour vérifier que le cache marche.
 
 ## Lancer le projet

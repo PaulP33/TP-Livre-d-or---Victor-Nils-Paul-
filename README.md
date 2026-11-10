@@ -24,11 +24,12 @@ Projet Docker ESGI. Un livre d'or tout simple : on laisse un message, il est enr
 
 ### Fonctionnalités du site
 
+- Photos de l'événement : une photo par message (8 Mo max), affichée dans une galerie avec visionneuse plein écran. Pillow vérifie que c'est bien une image, la redimensionne (1600 px max) et supprime les données EXIF (position GPS). Les photos sont stockées dans le volume `uploads`
 - Pagination (10 messages par page) et recherche par nom ou contenu
 - Likes sur les messages, un seul par personne (les IPs qui ont liké sont stockées dans Redis)
 - Anti-spam : un message toutes les 30 s par IP (clé Redis avec expiration) et un champ caché pour piéger les bots
 - Statistiques en haut de page (messages, auteurs, messages du jour)
-- Mode sombre automatique selon le système, avatars de couleur, compteur de caractères
+- Thème bleu roi, or et ivoire, animations au scroll, avatars, compteur de caractères
 
 Les likes et les messages refusés sont aussi comptés dans les métriques Prometheus (`livredor_likes`, `livredor_blocked`).
 
@@ -108,7 +109,7 @@ docker compose start redis
 │   ├── Dockerfile
 │   ├── app.py
 │   ├── requirements.txt
-│   ├── static/style.css
+│   ├── static/        (style.css, app.js)
 │   └── templates/index.html
 ├── db/
 │   ├── primary/init.sh

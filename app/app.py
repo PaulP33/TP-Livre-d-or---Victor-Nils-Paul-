@@ -34,7 +34,13 @@ def connect(host):
 
 
 def get_messages():
-    cached = cache.get(CACHE_KEY)
+    # si redis est down on lit directement la replica au lieu de planter
+    try:
+        cached = cache.get(CACHE_KEY)
+    except redis.RedisError:
+        cached = None
+        app.logger.warning("Redis injoignable, lecture sur la replica")
+
     if cached is not None:
         cache_count.labels("hit").inc()
         return json.loads(cached), "cache Redis"
@@ -47,7 +53,10 @@ def get_messages():
         ).fetchall()
 
     messages = [{"author": a, "content": c, "date": d} for a, c, d in rows]
-    cache.set(CACHE_KEY, json.dumps(messages), ex=CACHE_TTL)
+    try:
+        cache.set(CACHE_KEY, json.dumps(messages), ex=CACHE_TTL)
+    except redis.RedisError:
+        pass
     return messages, "replica PostgreSQL"
 
 
@@ -84,7 +93,10 @@ def new_message():
                 "INSERT INTO messages (author, content) VALUES (%s, %s)",
                 (author, content),
             )
-        cache.delete(CACHE_KEY)
+        try:
+            cache.delete(CACHE_KEY)
+        except redis.RedisError:
+            app.logger.warning("Impossible de vider le cache")
         messages_count.inc()
         send_notification(author, content)
 

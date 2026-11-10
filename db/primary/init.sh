@@ -8,6 +8,7 @@ CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
     author VARCHAR(50) NOT NULL,
     content TEXT NOT NULL,
+    likes INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 EOSQL

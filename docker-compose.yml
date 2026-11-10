@@ -28,6 +28,7 @@ services:
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
       ADMIN_EMAIL: ${ADMIN_EMAIL}
+      SECRET_KEY: ${SECRET_KEY}
       PGTZ: Europe/Paris
     depends_on:
       db-primary:

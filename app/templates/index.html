@@ -8,7 +8,23 @@
 </head>
 <body>
     <main class="guestbook-container">
-        <h1>Livre d'or</h1>
+        <header class="page-header">
+            <h1>Livre d'or</h1>
+            <p class="subtitle">Laissez une trace de votre passage</p>
+        </header>
+
+        <!-- Stats -->
+        <section class="stats">
+            <div class="stat"><span class="stat-value">{{ total }}</span><span class="stat-label">message{{ 's' if total > 1 }}</span></div>
+            <div class="stat"><span class="stat-value">{{ authors }}</span><span class="stat-label">auteur{{ 's' if authors > 1 }}</span></div>
+            <div class="stat"><span class="stat-value">{{ today }}</span><span class="stat-label">aujourd'hui</span></div>
+        </section>
+
+        {% with flashes = get_flashed_messages(with_categories=true) %}
+        {% for category, text in flashes %}
+        <div class="flash flash-{{ category }}">{{ text }}</div>
+        {% endfor %}
+        {% endwith %}
 
         <!-- Formulaire d'ajout de message -->
         <form method="post" class="guestbook-form">
@@ -19,8 +35,17 @@
             <div class="form-group">
                 <label for="content">Votre message</label>
                 <textarea id="content" name="content" placeholder="Laissez un petit mot ici..." maxlength="500" rows="4" required></textarea>
+                <span class="counter"><span id="count">0</span>/500</span>
             </div>
+            <!-- anti-spam : invisible pour les humains -->
+            <input type="text" name="website" class="honeypot" tabindex="-1" autocomplete="off">
             <button type="submit" class="btn-submit">Envoyer le message</button>
+        </form>
+
+        <!-- Recherche -->
+        <form method="get" class="search-form">
+            <input type="search" name="q" value="{{ search }}" placeholder="Rechercher un nom ou un message...">
+            {% if search %}<a href="{{ url_for('index') }}" class="search-reset">Effacer</a>{% endif %}
         </form>
 
         <!-- Liste des messages -->
@@ -28,22 +53,47 @@
             <h2 id="messages-title" class="sr-only">Messages précédents</h2>
             {% for m in messages %}
             <article class="message-card">
-                <header class="message-header">
-                    <strong class="message-author">{{ m.author }}</strong>
-                    <time class="message-date" datetime="{{ m.date }}">{{ m.date }}</time>
-                </header>
-                <p class="message-content">{{ m.content }}</p>
+                <div class="avatar" style="--hue: {{ m.author|hue }}">{{ m.author[0]|upper }}</div>
+                <div class="message-body">
+                    <header class="message-header">
+                        <strong class="message-author">{{ m.author }}</strong>
+                        <time class="message-date">{{ m.date }}</time>
+                    </header>
+                    <p class="message-content">{{ m.content }}</p>
+                    <form method="post" action="{{ url_for('like', message_id=m.id) }}" class="like-form">
+                        <button type="submit" class="btn-like {{ 'liked' if m.id in liked }}" {{ 'disabled' if m.id in liked }}>
+                            ♥ {{ m.likes }}
+                        </button>
+                    </form>
+                </div>
             </article>
             {% else %}
-            <p class="empty-message">Aucun message pour le moment, soyez le premier !</p>
+            <p class="empty-message">
+                {% if search %}Aucun message ne correspond à « {{ search }} ».{% else %}Aucun message pour le moment, soyez le premier !{% endif %}
+            </p>
             {% endfor %}
         </section>
 
+        {% if pages > 1 %}
+        <nav class="pagination">
+            {% if page > 1 %}<a href="{{ url_for('index', page=page - 1, q=search or None) }}">&larr; Précédent</a>{% endif %}
+            <span>Page {{ page }} / {{ pages }}</span>
+            {% if page < pages %}<a href="{{ url_for('index', page=page + 1, q=search or None) }}">Suivant &rarr;</a>{% endif %}
+        </nav>
+        {% endif %}
+
         <!-- Information technique (Docker / Source) -->
         <footer class="guestbook-footer">
-            <p>{{ messages|length }} message{{ 's' if messages|length > 1 }} affiché{{ 's' if messages|length > 1 }}</p>
             <p>Messages lus depuis : <span class="badge-source">{{ source }}</span></p>
         </footer>
     </main>
+
+    <script>
+        const content = document.getElementById("content");
+        const count = document.getElementById("count");
+        content.addEventListener("input", () => {
+            count.textContent = content.value.length;
+        });
+    </script>
 </body>
 </html>

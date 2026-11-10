@@ -105,7 +105,20 @@ def new_message():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    status = {"db": "ok", "redis": "ok"}
+    try:
+        with connect(PRIMARY_HOST) as conn:
+            conn.execute("SELECT 1")
+    except psycopg.Error:
+        status["db"] = "ko"
+    try:
+        cache.ping()
+    except redis.RedisError:
+        status["redis"] = "ko"
+
+    # redis n'est pas bloquant, l'app marche sans
+    code = 200 if status["db"] == "ok" else 503
+    return status, code
 
 
 @app.get("/metrics")
